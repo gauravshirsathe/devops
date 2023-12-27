@@ -1,0 +1,180 @@
+---
+- name: Connecting to Target
+  hosts: localhost
+  user: ubuntu
+  become: yes
+
+  tasks:
+  - name: Updating the repository
+    command: apt-get update -y
+    register: gaurav_result_a
+  - debug:
+        var: gaurav_result_a.stdout_lines
+
+  - name: Disabling the Swap Memory
+    command: swapoff -a
+    register: gaurav_result_b
+  - debug:
+        var: gaurav_result_b.stdout_lines
+
+  - name: Installing curl and ca certificates
+    command: sudo apt-get install ca-certificates curl gnupg apt-transport-https -y
+    register: gaurav_result_c
+  - debug:
+        var: gaurav_result_c.stdout_lines
+
+  - name: Installing keyrings
+    command: sudo install -m 0755 -d /etc/apt/keyrings
+    register: gaurav_result_d
+  - debug:
+        var: gaurav_result_d.stdout_lines
+
+  - name: Downloading Docker Keys
+    shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    register: gaurav_result_e
+  - debug:
+        var: gaurav_result_e.stdout_lines
+
+  - name: Changing permission of gpg key
+    command: chmod a+r /etc/apt/keyrings/docker.gpg
+    register: gaurav_result_f
+  - debug:
+        var: gaurav_result_f.stdout_lines
+
+  - name: Add the repository to Apt sources
+    shell: echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    register: gaurav_result_g
+  - debug:
+        var: gaurav_result_g.stdout_lines
+
+  - name: Updating the repository
+    command: apt-get update -y
+    register: gaurav_result_h
+  - debug:
+        var: gaurav_result_h.stdout_lines
+
+  - name: Installing Docker
+    command: apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+    register: gaurav_result_i
+  - debug:
+        var: gaurav_result_i.stdout_lines
+
+  - name: Starting Docker Services
+    command: systemctl enable --now docker
+    register: gaurav_result_j
+  - debug:
+        var: gaurav_result_j.stdout_lines
+
+  - name: Downloading Kubernetes Keys
+    shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    register: gaurav_result_k
+  - debug:
+        var: gaurav_result_k.stdout_lines
+
+  - name: Creating the gpg signing key for K8s
+    shell: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+    register: gaurav_result_l
+  - debug:
+        var: gaurav_result_l.stdout_lines
+
+  - name: Updating the repository
+    command: apt-get update -y
+    register: gaurav_result_m
+  - debug:
+        var: gaurav_result_m.stdout_lines
+
+  - name: Installing Kubernetes
+    command: apt-get install -y kubelet kubeadm kubectl
+    register: gaurav_result_n
+  - debug:
+        var: gaurav_result_n.stdout_lines
+
+  - name: Installing Kubernetes
+    command: sudo apt-mark hold kubelet kubeadm kubectl
+    register: gaurav_result_o
+  - debug:
+        var: gaurav_result_o.stdout_lines
+
+  - name: Configuring config.toml File
+    command: rm -f /etc/containerd/config.toml
+    register: gaurav_result_p
+  - debug:
+        var: gaurav_result_p.stdout_lines
+
+  - name: Copy configuration to config.toml
+    copy:
+      content: |
+        version = 2
+        [plugins]
+         [plugins."io.containerd.grpc.v1.cri"]
+          [plugins."io.containerd.grpc.v1.cri".containerd]
+           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+            [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+              runtime_type = "io.containerd.runc.v2"
+              [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+                SystemdCgroup=true
+      dest: /etc/containerd/config.toml
+    register: gaurav_result_q
+  - debug:
+        var: gaurav_result_q.stdout_lines
+
+  - name: Restarting Kubernetes Service
+    command: systemctl restart containerd
+    register: gaurav_result_r
+  - debug:
+        var: gaurav_result_r.stdout_lines
+
+  - name: Initializing  Kubernetes Cluster
+    command: kubeadm init
+    register: gaurav_result_s
+  - debug:
+        var: gaurav_result_s.stdout_lines
+
+  - name: Setting up the environment
+    become_user: root
+    become: yes
+    shell: export KUBECONFIG=/etc/kubernetes/admin.conf
+    register: gaurav_result_1
+  - debug:
+        var: gaurav_result_1.stdout_lines
+
+  - name: Printing the environment
+    become_user: root
+    become: yes
+    shell: export KUBECONFIG=/etc/kubernetes/admin.conf && echo $KUBECONFIG
+    register: gaurav_result_2
+  - debug:
+        var: gaurav_result_2.stdout_lines
+
+  - name: Setting Up Networking between Clusters
+    become_user: root
+    become: yes
+    shell: export KUBECONFIG=/etc/kubernetes/admin.conf && curl https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/calico.yaml -O
+    register: gaurav_result_t
+  - debug:
+        var: gaurav_result_t.stdout_lines
+
+  - name: Running Calico Networking File
+    become_user: root
+    become: yes
+    shell: export KUBECONFIG=/etc/kubernetes/admin.conf && kubectl apply -f calico.yaml
+    register: gaurav_result_u
+  - debug:
+        var: gaurav_result_u.stdout_lines
+
+  - name: Getting List of Nodes in CLuster
+    become_user: root
+    become: yes
+    shell: export KUBECONFIG=/etc/kubernetes/admin.conf && kubectl get nodes -o wide
+    register: gaurav_result_v
+  - debug:
+        var: gaurav_result_v.stdout_lines
+
+  - name: Getting Kubeadm join auth token
+    become_user: root
+    become: yes
+    shell: export KUBECONFIG=/etc/kubernetes/admin.conf && kubeadm token create --print-join-command >> /tmp/kube_join.sh
+    register: gaurav_result_w
+  - debug:
+        var: gaurav_result_w.stdout_lines
+
